@@ -532,7 +532,7 @@ ${historyText}`
   console.log(JSON.stringify({ choices: Array.isArray(data.choices) ? data.choices.length : 0, ai_text_chars: rawAiText.length }));
 
   const diaryResult = extractDiaryFromResponse(rawAiText);
-  const diarySaved = appendDiaryEntry(diaryResult.diaryContent，profile);
+  const diarySaved = appendDiaryEntry(diaryResult.diaryContent, profile);
   const aiText = diaryResult.remainingText;
 
   let eventContent;
@@ -613,7 +613,7 @@ ${historyText}`
     const eventResponse = await fetch(GATEWAY_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ content: eventContent，profile })
+     body: JSON.stringify( { content: eventContent, profile }
     });
     if (!eventResponse.ok) {
       throw new Error(`Gateway 返回 HTTP ${eventResponse.status}`);
