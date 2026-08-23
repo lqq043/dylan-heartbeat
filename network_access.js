@@ -32,18 +32,47 @@ function decideRequestAccess({
   }
 
   if (allowPublicApi && requestPath.startsWith("/v1/")) {
-    if (!configuredKey) return { allow: false, status: 401, error: "公网 /v1 已开启，但 GATEWAY_API_KEY 未配置", authRejected: true };
-    const bearer = String(authorization || "").match(/^Bearer\s+(.+)$/i)?.[1]?.trim() || "";
-    const alternate = String(headerKey || "").trim();
-    if (bearer === configuredKey || alternate === configuredKey) return { allow: true };
+  if (!configuredKey) {
     return {
       allow: false,
       status: 401,
-      error: "Gateway API Key 无效或缺失",
-      authRejected: true,
-      authSource: bearer ? "bearer" : alternate ? "x-api-key" : "missing"
+      error: "公网 /v1 已开启，但 GATEWAY_API_KEY 未配置",
+      authRejected: true
     };
   }
+
+  const bearer =
+    String(authorization || "")
+      .match(/^Bearer\s+(.+)$/i)?.[1]
+      ?.trim() || "";
+
+  const alternate = String(headerKey || "").trim();
+  const suppliedKey = bearer || alternate;
+
+  // 支持多个 Key：
+  // GATEWAY_API_KEY=keyA,keyB
+  const allowedKeys = String(configuredKey)
+    .split(",")
+    .map(key => key.trim())
+    .filter(Boolean);
+
+  const keyIndex = allowedKeys.indexOf(suppliedKey);
+
+  if (keyIndex >= 0) {
+    return {
+      allow: true,
+      profile: keyIndex === 0 ? "A" : "B"
+    };
+  }
+
+  return {
+    allow: false,
+    status: 401,
+    error: "Gateway API Key 无效或缺失",
+    authRejected: true,
+    authSource: bearer ? "bearer" : alternate ? "x-api-key" : "missing"
+  };
+}
 
   if (isLoopbackIp(ip) || (!isRailway && isPrivateIp(ip))) return { allow: true };
   return { allow: false, status: 403, error: "Forbidden" };
