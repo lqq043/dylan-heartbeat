@@ -14,15 +14,27 @@ const {
 
 // 批注 2026-08-10：与 Gateway 共用同一 DATA_DIR；未配置时仍落回项目目录，保护旧 VPS/本机部署。
 const DATA_DIR = ensureDataDir();
-const TIMELINE_PATH = runtimeFile("enhanced_messages.json");
+function timelineFileForProfile(profile) {
+  const suffix = profile === "B" ? "_B" : "_A";
+  return runtimeFile(`enhanced_messages${suffix}.json`);
+}
+function diaryDirForProfile(profile) {
+  const base = process.env.DIARY_DIR || "diary";
+  const suffix = profile === "B" ? "_B" : "_A";
+  return runtimeDirectory(`${base}${suffix}`, `diary${suffix}`);
+}
+function getActiveProfiles() {
+  const raw = String(process.env.GATEWAY_API_KEY || "").trim();
+  const count = raw ? raw.split(",").map(s => s.trim()).filter(Boolean).length : 0;
+  return count >= 2 ? ["A", "B"] : ["A"];
+}
 const PORT = Number(process.env.PORT) || 3000;
 const GATEWAY_BASE_URL = (process.env.GATEWAY_BASE_URL || `http://localhost:${PORT}`).replace(/\/+$/, "");
 const GATEWAY_URL = `${GATEWAY_BASE_URL}/internal/wake-event`;
 const HEARTBEAT_URL = `${GATEWAY_BASE_URL}/internal/heartbeat`;
 const TIME_ZONE = resolveTimeZone();
 const WEATHER_TIMEOUT_MS = 5000;
-const DIARY_DIR_NAME = process.env.DIARY_DIR || "diary";
-const DIARY_DIR_PATH = runtimeDirectory(DIARY_DIR_NAME, "diary");
+
 const PUSH_TIMEOUT_MS = readPositiveTimeout("PUSH_TIMEOUT_MS", 15_000);
 const WAKE_UPSTREAM_TIMEOUT_MS = readPositiveTimeout("WAKE_UPSTREAM_TIMEOUT_MS", 300_000);
 
@@ -69,7 +81,7 @@ function extractDiaryFromResponse(text) {
   };
 }
 
-function appendDiaryEntry(content) {
+function appendDiaryEntry(content, profile = "A") {
   if (!readBooleanEnv("DIARY_ENABLED", true)) {
     console.log("模型写了日记，但 DIARY_ENABLED=false，本次不保存");
     return false;
@@ -78,8 +90,10 @@ function appendDiaryEntry(content) {
   const cleanContent = String(content || "").trim();
   if (!cleanContent) return false;
 
-  fs.mkdirSync(DIARY_DIR_PATH, { recursive: true });
-  const diaryFile = path.join(DIARY_DIR_PATH, `${getDiaryDateString()}.md`);
+  const diaryDir = diaryDirForProfile(profile);
+  fs.mkdirSync(diaryDir, { recursive: true });
+  const diaryFile = path.join(diaryDir, `${getDiaryDateString()}.md`);
+
   const entry = `\n\n## ${getDiaryTimeString()}\n\n${cleanContent}\n`;
   fs.appendFileSync(diaryFile, entry, "utf-8");
   console.log(`已保存日记：${diaryFile}`);
@@ -295,14 +309,16 @@ async function fetchWeatherContext() {
   }
 }
 
-function loadTimelineMessages() {
-  if (!fs.existsSync(TIMELINE_PATH)) {
-    console.log("未找到 enhanced_messages.json");
+function loadTimelineMessages(profile = "A") {
+  const timelinePath = timelineFileForProfile(profile);
+  if (!fs.existsSync(timelinePath)) {
+    console.log(`未找到 ${path.basename(timelinePath)}`);
     return null;
   }
 
   try {
-    const parsed = JSON.parse(fs.readFileSync(TIMELINE_PATH, "utf-8"));
+    const parsed = JSON.parse(fs.readFileSync(timelinePath, "utf-8"));
+
     if (!Array.isArray(parsed)) {
       console.log("enhanced_messages.json 格式错误：顶层不是数组");
       return null;
@@ -399,13 +415,15 @@ ${weatherContext ? `\n${weatherContext}\n` : ""}
 `;
 }
 
-async function runWakeUp() {
+async function runWakeUp(profile = "A") {
   console.log("\n==========================");
-  console.log("开始自动唤醒");
+  console.log(`开始自动唤醒（角色 ${profile}）`);
   console.log("==========================\n");
 
-  const messages = loadTimelineMessages();
+  const messages = loadTimelineMessages(profile);
   if (!messages) return;
+
+  if 
 
   const lastUserTime = getLastUserTime(messages);
   if (!lastUserTime) {
@@ -514,7 +532,7 @@ ${historyText}`
   console.log(JSON.stringify({ choices: Array.isArray(data.choices) ? data.choices.length : 0, ai_text_chars: rawAiText.length }));
 
   const diaryResult = extractDiaryFromResponse(rawAiText);
-  const diarySaved = appendDiaryEntry(diaryResult.diaryContent);
+  const diarySaved = appendDiaryEntry(diaryResult.diaryContent，profile);
   const aiText = diaryResult.remainingText;
 
   let eventContent;
@@ -595,7 +613,7 @@ ${historyText}`
     const eventResponse = await fetch(GATEWAY_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ content: eventContent })
+      body: JSON.stringify({ content: eventContent，profile })
     });
     if (!eventResponse.ok) {
       throw new Error(`Gateway 返回 HTTP ${eventResponse.status}`);
@@ -618,10 +636,17 @@ async function scheduleNextCheck() {
     try {
       await fetch(HEARTBEAT_URL, { method: "POST" });
     } catch {}
-    await runWakeUp();
+        for (const profile of getActiveProfiles()) {
+      try {
+        await runWakeUp(profile);
+      } catch (err) {
+        console.error(`角色 ${profile} 唤醒检查出错:`, err);
+      }
+    }
   } catch (err) {
     console.error("唤醒检查出错:", err);
   }
+
   setTimeout(scheduleNextCheck, getCheckIntervalMs());
 }
 
