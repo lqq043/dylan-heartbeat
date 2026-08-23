@@ -423,7 +423,7 @@ async function runWakeUp(profile = "A") {
   const messages = loadTimelineMessages(profile);
   if (!messages) return;
 
-  if 
+  
 
   const lastUserTime = getLastUserTime(messages);
   if (!lastUserTime) {
