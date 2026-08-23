@@ -44,8 +44,15 @@ const IS_RAILWAY_RUNTIME = Boolean(
 // 批注 2026-08-10：默认路径仍是项目目录，保护本机/VPS 旧部署；Railway 挂载 Volume 后
 // DATA_DIR（或平台提供的 RAILWAY_VOLUME_MOUNT_PATH）统一承载时间线、时间戳、预设和日记。
 const DATA_DIR = ensureDataDir();
-const TIMELINE_FILE = runtimeFile("enhanced_messages.json");
-const TIMESTAMP_DB_FILE = runtimeFile("message_timestamps.json");
+function timelineFileForProfile(profile) {
+  const suffix = profile === "B" ? "_B" : "_A";
+  return runtimeFile(`enhanced_messages${suffix}.json`);
+}
+function timestampDbFileForProfile(profile) {
+  const suffix = profile === "B" ? "_B" : "_A";
+  return runtimeFile(`message_timestamps${suffix}.json`);
+}
+
 // 批注 2026-07-17：管理页保存 .env 后要让 PM2 刷新进程环境；保留原进程名，
 // 只补 --update-env，避免用户改完推送配置却继续运行旧值。
 const DEFAULT_RESTART_COMMAND = "pm2 restart gateway wake-up --update-env";
@@ -212,20 +219,21 @@ function safeJsonForInlineScript(value) {
 // ========================
 // 读取 timeline
 // ========================
-function loadTimeline() {
-  if (!fs.existsSync(TIMELINE_FILE)) return [];
-  try { return fs.readJsonSync(TIMELINE_FILE); } catch { return []; }
+function loadTimeline(profile = "A") {
+  const file = timelineFileForProfile(profile);
+  if (!fs.existsSync(file)) return [];
+  try { return fs.readJsonSync(file); } catch { return []; }
 }
 
 // ========================
 // 保存 timeline（保留 SP）
 // ========================
-function saveTimeline(messages) {
+function saveTimeline(messages, profile = "A") {
   const sp = messages.find(m => m.role === "system");
   const nonSP = messages.filter(m => m.role !== "system");
   const trimmed = nonSP.slice(-49);
   const final = sp ? [sp, ...trimmed] : trimmed;
-  writeJsonAtomicSync(TIMELINE_FILE, final);
+  writeJsonAtomicSync(timelineFileForProfile(profile), final);
 }
 
 // ========================
@@ -256,14 +264,16 @@ function extractTimestamp(content) {
 // ========================
 // 时间戳记忆库
 // ========================
-function loadTimestampDB() {
-  if (!fs.existsSync(TIMESTAMP_DB_FILE)) return {};
-  try { return fs.readJsonSync(TIMESTAMP_DB_FILE); } catch { return {}; }
+function loadTimestampDB(profile = "A") {
+  const file = timestampDbFileForProfile(profile);
+  if (!fs.existsSync(file)) return {};
+  try { return fs.readJsonSync(file); } catch { return {}; }
 }
 
-function saveTimestampDB(db) {
-  writeJsonAtomicSync(TIMESTAMP_DB_FILE, db);
+function saveTimestampDB(db, profile = "A") {
+  writeJsonAtomicSync(timestampDbFileForProfile(profile), db);
 }
+
 
 function makeFingerprint(msg) {
   const raw = normalizeContentToText(msg.content);
@@ -314,8 +324,9 @@ function isSystemRule(msg) {
 // ========================
 // 构建 Timeline
 // ========================
-function buildTimeline(kelivoMessages, tsDB) {
-  const oldTimeline = loadTimeline();
+function buildTimeline(kelivoMessages, tsDB, profile = "A") {
+  const oldTimeline = loadTimeline(profile);
+
   const newSystemMessages = kelivoMessages
     .filter(msg => msg.role === "system")
     .map(normalizeMessageForTimeline);
@@ -394,16 +405,16 @@ function buildTimeline(kelivoMessages, tsDB) {
 // ========================
 // 追加特殊事件
 // ========================
-function appendSpecialEvent(content) {
-  const timeline = loadTimeline();
+function appendSpecialEvent(content, profile = "A") {
+  const timeline = loadTimeline(profile);
   let maxPos = 0;
   for (const msg of timeline) {
     if (msg.position && msg.position > maxPos) maxPos = msg.position;
   }
   const newEvent = { role: "assistant", content, position: maxPos + 0.5 };
   timeline.push(newEvent);
-  saveTimeline(timeline);
-  // 批注 2026-07-15：特殊事件可能包含推送正文；日志只记录长度，避免公开部署时泄漏私密内容。
+  saveTimeline(timeline, profile);
+// 批注 2026-07-15：特殊事件可能包含推送正文；日志只记录长度，避免公开部署时泄漏私密内容。
   console.log(`\n已记录特殊事件 (position ${newEvent.position}, chars ${normalizeContentToText(content).length})\n`);
 }
 
@@ -527,7 +538,11 @@ app.addHook("onRequest", (req, reply, done) => {
     authorization: req.headers.authorization,
     headerKey
   });
-  if (access.allow) return done();
+  if (access.allow) {
+  req.gatewayProfile = access.profile || "A";
+  return done();
+}
+
   if (access.authRejected) {
     // 批注 2026-07-30：Kelivo 可能在模型探测或旧预设里继续带错 key；
     // 只记路径和 header 类型，帮助排查缓存/重复请求，绝不把任意密钥写入日志。
@@ -557,8 +572,10 @@ app.get("/v1/models", async (req, reply) => {
 // ========================
 app.post("/v1/chat/completions", async (req, reply) => {
   try {
+    const profile = req.gatewayProfile || "A";
     const body = req.body;
-    // 批注 2026-07-15：公开部署时日志不能默认写入完整上下文；
+
+     // 批注 2026-07-15：公开部署时日志不能默认写入完整上下文；
     // 这里只保留请求摘要，避免 system prompt、记忆和聊天正文进入 pm2 日志。
     console.log(JSON.stringify({
       event: "kelivo_request",
@@ -568,9 +585,11 @@ app.post("/v1/chat/completions", async (req, reply) => {
     }));
 
     const kelivoMessages = body.messages || [];
-    const oldTimeline = loadTimeline();
+    const oldTimeline = loadTimeline(profile);
 
-    const tsDB = loadTimestampDB();
+
+const tsDB = loadTimestampDB(profile);
+
     let tsDBDirty = false;
     for (const msg of kelivoMessages) {
       if (msg.role === "system") continue;
@@ -582,10 +601,12 @@ app.post("/v1/chat/completions", async (req, reply) => {
       if (!tsDB[fp]) { tsDB[fp] = ts.toISOString(); tsDBDirty = true; }
       if (!tsDB[fpStripped]) { tsDB[fpStripped] = ts.toISOString(); tsDBDirty = true; }
     }
-    if (tsDBDirty) saveTimestampDB(tsDB);
+    if (tsDBDirty) saveTimestampDB(tsDB, profile);
 
-    const finalTimeline = buildTimeline(kelivoMessages, tsDB);
-    saveTimeline(finalTimeline);
+
+    const finalTimeline = buildTimeline(kelivoMessages, tsDB, profile);
+saveTimeline(finalTimeline, profile);
+
 
     // Kelivo 发图时 content 常是数组。默认原样透传给视觉模型；
     // 如上游不支持图片，可设置 MULTIMODAL_MODE=text 退回文本占位。
@@ -748,9 +769,9 @@ app.post("/v1/chat/completions", async (req, reply) => {
 // ========================
 app.post("/internal/wake-event", async (req, reply) => {
   try {
-    const { content } = req.body;
+    const { content, profile } = req.body;
     if (!content) return reply.code(400).send({ error: "content is required" });
-    appendSpecialEvent(content);
+    appendSpecialEvent(content, profile || "A");
     reply.send({ success: true });
   } catch (err) {
     console.error(err);
