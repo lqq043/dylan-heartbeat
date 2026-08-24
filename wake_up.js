@@ -401,7 +401,7 @@ function parseTimelineTimestamp(value) {
     return null;
   }
 }
-}
+
 
 function getLastUserTime(messages) {
   const reversed = [...messages].reverse();
