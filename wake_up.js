@@ -350,7 +350,7 @@ function shouldWake(lastUserTime) {
 
 function parseTimelineTimestamp(value) {
   const text = String(value || "");
-  const match = text.match(/(?:\s*|<current_time>[^0-9]*)(\d{4})([-/])(\d{1,2})\2(\d{1,2})(?:[ T]?)(\d{1,2})[:：](\d{2})/);
+  const match = text.match(/(\d{4})[-/](\d{1,2})[-/](\d{1,2})[ T](\d{1,2})[:：](\d{2})/);
 
   if (!match) return null;
   const [, yyyy, , month, day, hour, minute] = match;
