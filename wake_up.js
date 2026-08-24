@@ -623,7 +623,11 @@ ${historyText}`
   const diaryResult = extractDiaryFromResponse(rawAiText);
   const diarySaved = appendDiaryEntry(diaryResult.diaryContent, profile);
   const aiText = diaryResult.remainingText;
-
+  // 拦截系统 Gate / user_memory 内容，禁止进入 Bark 推送
+  if (/<gate\b/i.test(aiText) || /<user_memory\b/i.test(aiText)) {
+    console.log("\nAI 返回系统 Gate 内容，本次不发送推送\n");
+    return;
+  }
   let eventContent;
 
   if (!aiText) {
