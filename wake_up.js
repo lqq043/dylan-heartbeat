@@ -483,7 +483,7 @@ function getLastUserTime(messages) {
         console.log("==============================");
         debugCount++;
       }
-    }
+    
   }
 
   console.log("【时间诊断】没有找到任何可解析的用户时间");
