@@ -573,7 +573,7 @@ async function runWakeUp(profile = "A") {
 
 ${historyText}`
     }
-  }
+  
 ];
 
 
