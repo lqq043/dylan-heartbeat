@@ -1827,7 +1827,7 @@ app.listen({ port: PORT, host: "0.0.0.0" }, (err, address) => {
     event: "runtime_config_summary",
     railway: IS_RAILWAY_RUNTIME,
     persistent_data: Boolean(process.env.DATA_DIR || process.env.RAILWAY_VOLUME_MOUNT_PATH),
-    target_url_configured: Boolean(TARGET_API_URL),
+    target_url_configured: Boolean(readEnvValue("TARGET_API_URL")),
     target_key_configured: Boolean(process.env.TARGET_API_KEY),
     model_configured: Boolean(process.env.MODEL_NAME),
     gateway_key_configured: Boolean(readEnvValue("GATEWAY_API_KEY")),
