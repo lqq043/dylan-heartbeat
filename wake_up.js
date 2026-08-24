@@ -708,8 +708,7 @@ ${historyText}`
     }
 
     
-    }
-  }
+  
 
   try {
     const eventResponse = await fetch(GATEWAY_URL, {
