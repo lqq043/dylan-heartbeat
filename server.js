@@ -333,20 +333,39 @@ function isSpecialEvent(msg) {
   return isSpecialEventContent(normalizeContentToText(msg.content));
 }
 
+// Kelivo 的翻译功能会产生临时翻译请求。
+// 这类请求可以正常发送给模型，但不能写入聊天时间线。
+function isTranslationRequest(msg) {
+  if (msg.role !== "user") return false;
+
+  const text = normalizeContentToText(msg.content).trim();
+  if (!text) return false;
+
+  return (
+    /you are a translation expert/i.test(text) ||
+    /please translate the <source_text> section/i.test(text) ||
+    /<source_text>\s*<\/source_text>/i.test(text) ||
+    /<source_text>\s*$/i.test(text)
+  );
+}
+
 function isRealMessageForTimeline(msg) {
   if (msg.role === "system") return false;
   if (msg.tool_calls) return false;
   if (isSpecialEvent(msg)) return false;
-  const contentText = normalizeContentToText(msg.content);
-  if (msg.role === "user" && contentText.trim().startsWith("<system>")) return false;
-  return msg.role === "user" || msg.role === "assistant";
-}
 
-function isSystemRule(msg) {
-  if (msg.role === "system") return true;
   const contentText = normalizeContentToText(msg.content);
-  if (msg.role === "user" && contentText.trim().startsWith("<system>")) return true;
-  return false;
+
+  if (msg.role === "user" && contentText.trim().startsWith("<system>")) {
+    return false;
+  }
+
+  // 翻译请求不写入 A/B 时间线
+  if (isTranslationRequest(msg)) {
+    return false;
+  }
+
+  return msg.role === "user" || msg.role === "assistant";
 }
 
 // ========================
