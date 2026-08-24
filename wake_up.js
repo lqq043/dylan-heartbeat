@@ -660,23 +660,57 @@ ${historyText}`
       .replace(/^标题[：:]\s*/gm, "")
       .replace(/^正文[：:]\s*/gm, "");
 
-    // 按行处理
-    const lines = barkText.split("\n").filter(line => line.trim() !== "");
+        // A/B 固定身份，避免自动 Bark 都显示成“来自AI”
+    const lines = barkText
+      .split("\n")
+      .map(line => line.trim())
+      .filter(Boolean);
 
-    let title, body;
+    let title;
+    let body;
+
     if (lines.length === 0) {
       console.log("\n推送内容清洗后为空，本次不发送推送\n");
-      eventContent = `（${getLocalTimeString()} 自动唤醒：本次未发送推送｜原因：推送内容为空）`;
-    } else if (lines.length === 1) {
-      title = "来自AI";
-      body = lines[0].trim();
-    } else if (lines.length === 2) {
-      title = lines[0].trim();
-      body = lines[1].trim();
+      eventContent =
+        `（${getLocalTimeString()} ${profile} 自动唤醒：本次未发送推送｜原因：推送内容为空）`;
     } else {
-      // ≥3 行：第一行标题，剩余用空格拼接成正文
-      title = lines[0].trim();
-      body = lines.slice(1).map(l => l.trim()).join(" ");
+      // A = 老婆，B = 韩语角色
+      title = profile === "B" ? "B" : "老婆";
+
+      // AI 的全部内容都作为正文，不再把第一行误认为标题
+      body = lines.join("\n");
+
+      // Bark 正文长度保护
+      const safeBody =
+        body.length > 500 ? body.substring(0, 497) + "..." : body;
+
+      console.log(
+        `\n[${profile}] 准备发送 Bark：${title} → ${safeBody}\n`
+      );
+
+      const pushResult = await sendPushNotification({
+        title,
+        body: safeBody
+      });
+
+      if (!pushResult.ok) {
+        console.log(
+          `\n[${profile}] ${pushResult.providerLabel} 推送失败，本次不发送推送\n`
+        );
+
+        eventContent =
+          `（${getLocalTimeString()} ${profile} 自动唤醒：本次未发送推送｜` +
+          `原因：${pushResult.providerLabel} 推送失败：${pushResult.reason}）`;
+      } else {
+        eventContent =
+          `（${getLocalTimeString()} ${profile} 自动唤醒：` +
+          `刚刚给用户发了${pushResult.providerLabel}推送：` +
+          `${title}｜${safeBody}）`;
+
+        console.log(
+          `\n[${profile}] ${pushResult.providerLabel} 推送成功：${title}\n`
+        );
+      }
     }
 
     if (!eventContent) {
