@@ -726,18 +726,18 @@ if (!barkSourceText) {
       });
 
       if (!pushResult.ok) {
-        console.log(
-          `\n[${profile}] ${pushResult.providerLabel} 推送失败，本次不发送推送\n`
-        );
+  console.log(
+    `\n[${profile}] ${pushResult.providerLabel} 推送失败，本次不发送推送\n`
+  );
+  eventContent = `(${formatDateTimeInTimeZone()}) 自动唤醒：本次未发送推送`;
+} else {
+  eventContent = `(${formatDateTimeInTimeZone()}) 刚刚给${profile === "B" ? "用户" : "宝宝"}发了 Bark 推送：${title}`;
 
-        eventContent = "";
-      } else {
-        eventContent = "";
+  console.log(
+    `\n[${profile}] ${pushResult.providerLabel} 推送成功: ${title}\n`
+  );
+}
 
-        console.log(
-          `\n[${profile}] ${pushResult.providerLabel} 推送成功：${title}\n`
-        );
-      }
     }
 
     
