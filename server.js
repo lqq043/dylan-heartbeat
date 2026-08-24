@@ -591,7 +591,14 @@ app.get("/healthz", async () => ({ status: "ok" }));
 app.get("/v1/models", async (req, reply) => {
   reply.send({
     object: "list",
-    data: [{ id: configuredModelName(req.gatewayProfile || "A"),
+    data: [
+      {
+        id: configuredModelName(req.gatewayProfile || "A"),
+        object: "model",
+        created: 0,
+        owned_by: "gateway"
+      }
+    ]
   });
 });
 
