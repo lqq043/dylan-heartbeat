@@ -577,6 +577,8 @@ app.post("/v1/chat/completions", async (req, reply) => {
 
      // 批注 2026-07-15：公开部署时日志不能默认写入完整上下文；
     // 这里只保留请求摘要，避免 system prompt、记忆和聊天正文进入 pm2 日志。
+    console.log("DEBUG_LAST_USER_MSG:", JSON.stringify((body?.messages || []).filter(m => m.role === "user").slice(-1)));
+
     console.log(JSON.stringify({
       event: "kelivo_request",
       model: body?.model || "",
