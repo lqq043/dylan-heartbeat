@@ -671,8 +671,7 @@ ${historyText}`
 
     if (lines.length === 0) {
       console.log("\n推送内容清洗后为空，本次不发送推送\n");
-      eventContent =
-        `（${getLocalTimeString()} ${profile} 自动唤醒：本次未发送推送｜原因：推送内容为空）`;
+      eventContent = "";
     } else {
       // A = 老婆，B = 韩语角色
       title = profile === "B" ? "B" : "老婆";
@@ -698,14 +697,9 @@ ${historyText}`
           `\n[${profile}] ${pushResult.providerLabel} 推送失败，本次不发送推送\n`
         );
 
-        eventContent =
-          `（${getLocalTimeString()} ${profile} 自动唤醒：本次未发送推送｜` +
-          `原因：${pushResult.providerLabel} 推送失败：${pushResult.reason}）`;
+        eventContent = "";
       } else {
-        eventContent =
-          `（${getLocalTimeString()} ${profile} 自动唤醒：` +
-          `刚刚给用户发了${pushResult.providerLabel}推送：` +
-          `${title}｜${safeBody}）`;
+        eventContent = "";
 
         console.log(
           `\n[${profile}] ${pushResult.providerLabel} 推送成功：${title}\n`
@@ -713,20 +707,7 @@ ${historyText}`
       }
     }
 
-    if (!eventContent) {
-      // 保护：截断过长正文，兼容 Bark 和 ntfy 的移动端展示。
-      const safeBody = body.length > 500 ? body.substring(0, 497) + "..." : body;
-      // 若标题为空或以数字开头，加个前缀，可自行修改
-      let safeTitle = title || "来自伴侣";
-      if (/^\d/.test(safeTitle)) safeTitle = "来自伴侣｜" + safeTitle;
-
-      const pushResult = await sendPushNotification({ title: safeTitle, body: safeBody });
-      if (!pushResult.ok) {
-        console.log(`\n${pushResult.providerLabel} 推送失败，本次不发送推送\n`);
-        eventContent = `（${getLocalTimeString()} 自动唤醒：本次未发送推送｜原因：${pushResult.providerLabel} 推送失败：${pushResult.reason}）`;
-      } else {
-        eventContent = `（${getLocalTimeString()} 刚刚给用户发了${pushResult.providerLabel}推送：${safeTitle}｜${safeBody}）`;
-      }
+    
     }
   }
 
