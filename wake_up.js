@@ -408,14 +408,47 @@ function getLastUserTime(messages) {
   let debugCount = 0;
 
   for (const msg of reversed) {
-    if (msg.role === "user") {
-      const content = normalizeContentToText(msg.content);
+  if (msg.role !== "user") continue;
 
-      const parsed = parseTimelineTimestamp(content);
+  const content = normalizeContentToText(msg.content);
 
-      if (parsed) {
-        console.log("【时间诊断】找到用户时间:", parsed.toISOString());
-        return parsed;
+  // 跳过 Kelivo 翻译请求，避免把翻译系统请求当成真实用户消息
+  if (
+    /you are a translation expert/i.test(content) ||
+    /please translate the <source_text> section/i.test(content) ||
+    /<source_text>[\s\S]*<\/source_text>/i.test(content)
+  ) {
+    continue;
+  }
+
+  // 优先读取消息自身携带的时间字段
+  const directTime =
+    msg.timestamp ||
+    msg.created_at ||
+    msg.createdAt ||
+    msg.datetime ||
+    msg.date ||
+    msg.time;
+
+  if (directTime) {
+    const parsedDirect = new Date(directTime);
+
+    if (!Number.isNaN(parsedDirect.getTime())) {
+      console.log("【时间诊断】从消息字段找到用户时间：", parsedDirect.toISOString());
+      return parsedDirect;
+    }
+  }
+
+  // 再从消息正文中寻找时间
+  const parsed = parseTimelineTimestamp(content);
+
+  if (parsed) {
+    console.log("【时间诊断】从消息内容找到用户时间：", parsed.toISOString());
+    return parsed;
+  }
+
+  // 没时间就继续往前找，不要把这一条直接当成最后一条有效用户消息
+}
       }
 
       // 只打印最近 5 条无法解析时间的用户消息，避免日志爆炸
@@ -624,10 +657,17 @@ ${historyText}`
   const diarySaved = appendDiaryEntry(diaryResult.diaryContent, profile);
   const aiText = diaryResult.remainingText;
   // 拦截系统 Gate / user_memory 内容，禁止进入 Bark 推送
-  if (/<gate\b/i.test(aiText) || /<user_memory\b/i.test(aiText)) {
-    console.log("\nAI 返回系统 Gate 内容，本次不发送推送\n");
-    return;
-  }
+  const barkSourceText = aiText
+  .replace(/<gate\b[^>]*>/gi, "")
+  .replace(/<\/gate>/gi, "")
+  .replace(/<user_memory\b[^>]*>[\s\S]*?<\/user_memory>/gi, "")
+  .trim();
+
+if (!barkSourceText) {
+  console.log("\nAI 只返回系统 Gate / user_memory 内容，本次不发送推送\n");
+  return;
+}
+  
   let eventContent;
 
   if (!aiText) {
@@ -637,7 +677,7 @@ ${historyText}`
   } else {
     // 没有 [NO_ACTION] 就视为想发推送
     console.log("\nAI 选择发送推送\n");
-    let barkText = aiText;
+    let barkText = barkSourceText;
 
     // 如果 AI 还是写了 [BARK] ... [/BARK] 标签，就剥掉
     const barkMatch = barkText.match(/\[BARK\]([\s\S]*?)\[\/BARK\]/);
