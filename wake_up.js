@@ -573,7 +573,9 @@ async function runWakeUp(profile = "A") {
 
 ${historyText}`
     }
-  ];
+  }
+];
+
 
   // 批注 2026-07-15：wake-up prompt 会包含最近聊天记录；
   // 默认日志只写摘要，避免公开部署时把完整上下文刷进 pm2 日志。
