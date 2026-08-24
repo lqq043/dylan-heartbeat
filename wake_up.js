@@ -405,15 +405,55 @@ function parseTimelineTimestamp(value) {
 
 function getLastUserTime(messages) {
   const reversed = [...messages].reverse();
+  let debugCount = 0;
+
   for (const msg of reversed) {
     if (msg.role === "user") {
       const content = normalizeContentToText(msg.content);
-      // 批注 2026-07-15：兼容 Kelivo 时间前缀 "YYYY-MM-DDHH:mm"；
-      // 旧的 "YYYY-MM-DD HH:mm" 仍然可用，避免无空格时间导致 wake-up 误判没有用户时间。
+
       const parsed = parseTimelineTimestamp(content);
-      if (parsed) return parsed;
+
+      if (parsed) {
+        console.log("【时间诊断】找到用户时间:", parsed.toISOString());
+        return parsed;
+      }
+
+      // 只打印最近 5 条无法解析时间的用户消息，避免日志爆炸
+      if (debugCount < 5) {
+        console.log("========== 时间诊断 ==========");
+        console.log("用户消息字段:", Object.keys(msg));
+
+        console.log(
+          "content 原始值:",
+          typeof msg.content === "string"
+            ? msg.content.slice(0, 500)
+            : JSON.stringify(msg.content).slice(0, 500)
+        );
+
+        console.log(
+          "content 标准化后:",
+          content.slice(0, 500)
+        );
+
+        console.log(
+          "可能的时间字段:",
+          JSON.stringify({
+            timestamp: msg.timestamp,
+            created_at: msg.created_at,
+            createdAt: msg.createdAt,
+            time: msg.time,
+            date: msg.date,
+            datetime: msg.datetime
+          })
+        );
+
+        console.log("==============================");
+        debugCount++;
+      }
     }
   }
+
+  console.log("【时间诊断】没有找到任何可解析的用户时间");
   return null;
 }
 
