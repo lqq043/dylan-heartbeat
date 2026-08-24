@@ -350,11 +350,57 @@ function shouldWake(lastUserTime) {
 
 function parseTimelineTimestamp(value) {
   const text = String(value || "");
-  const match = text.match(/(\d{4})[-/](\d{1,2})[-/](\d{1,2})[ T](\d{1,2})[:：](\d{2})/);
+
+  const match =
+    text.match(/（?\s*(\d{4})([-/])(\d{1,2})\2(\d{1,2})(?:[ T]|\s*)(\d{1,2})[:：](\d{2})/) ||
+    text.match(/<current_time>\s*(\d{4})([-/])(\d{1,2})\2(\d{1,2})(?:[ T]|\s*)(\d{1,2})[:：](\d{2})/);
 
   if (!match) return null;
+
   const [, yyyy, , month, day, hour, minute] = match;
-  return zonedWallTimeToDate({ year: yyyy, month, day, hour, minute }, TIME_ZONE);
+
+  const yearNum = Number(yyyy);
+  const monthNum = Number(month);
+  const dayNum = Number(day);
+  const hourNum = Number(hour);
+  const minuteNum = Number(minute);
+
+  if (
+    !Number.isInteger(yearNum) ||
+    !Number.isInteger(monthNum) ||
+    !Number.isInteger(dayNum) ||
+    !Number.isInteger(hourNum) ||
+    !Number.isInteger(minuteNum) ||
+    monthNum < 1 ||
+    monthNum > 12 ||
+    dayNum < 1 ||
+    dayNum > 31 ||
+    hourNum < 0 ||
+    hourNum > 23 ||
+    minuteNum < 0 ||
+    minuteNum > 59
+  ) {
+    return null;
+  }
+
+  try {
+    const result = zonedWallTimeToDate(
+      {
+        year: yearNum,
+        month: monthNum,
+        day: dayNum,
+        hour: hourNum,
+        minute: minuteNum
+      },
+      TIME_ZONE
+    );
+
+    return Number.isNaN(result.getTime()) ? null : result;
+  } catch (err) {
+    console.log("时间解析失败:", text, err.message);
+    return null;
+  }
+}
 }
 
 function getLastUserTime(messages) {
