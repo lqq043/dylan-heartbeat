@@ -572,9 +572,9 @@ async function runWakeUp(profile = "A") {
 最近记录：
 
 ${historyText}`
+
     }
-  
-];
+  ];
 
 
   // 批注 2026-07-15：wake-up prompt 会包含最近聊天记录；
