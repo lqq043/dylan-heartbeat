@@ -771,7 +771,7 @@ const response = await fetch(profileConfig.targetApiUrl, {
     messages: llmMessages
   })
 });
-    });
+    
 
     const upstreamContentType = response.headers.get("content-type") || "";
     const shouldStreamResponse = requestedStream || upstreamContentType.includes("text/event-stream");
