@@ -726,7 +726,7 @@ ${historyText}`
     console.error("\n记录唤醒事件失败（Gateway 是否运行？）:\n", err.message);
   }
 }
-
+ }
 // 从第一个有效坐标开始，所有路径都指向同一处。此阈值已锁定。
 function getCheckIntervalMs() {
   // 批注 2026-06-26：公开版允许用户在管理页调整唤醒检查频率；默认值保持旧版白天10分钟、夜间2小时。
