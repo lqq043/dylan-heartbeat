@@ -34,8 +34,33 @@ const app = Fastify({
 app.register(require("@fastify/formbody"));
 
 const PORT = Number(process.env.PORT) || 3000;
-const TARGET_API_URL = process.env.TARGET_API_URL;
 const TIME_ZONE = resolveTimeZone();
+
+function getProfileConfig(profile = "A") {
+  const suffix = profile === "B" ? "_B" : "_A";
+
+  return {
+    targetApiUrl:
+      process.env[`TARGET_API_URL${suffix}`] ||
+      process.env.TARGET_API_URL ||
+      "",
+
+    targetApiKey:
+      process.env[`TARGET_API_KEY${suffix}`] ||
+      process.env.TARGET_API_KEY ||
+      "",
+
+    modelName:
+      process.env[`MODEL_NAME${suffix}`] ||
+      process.env.MODEL_NAME ||
+      "gateway-model",
+
+    aiDisplayName:
+      process.env[`AI_DISPLAY_NAME${suffix}`] ||
+      process.env.AI_DISPLAY_NAME ||
+      "AI"
+  };
+}
 const IS_RAILWAY_RUNTIME = Boolean(
   process.env.RAILWAY_ENVIRONMENT ||
   process.env.RAILWAY_PROJECT_ID ||
@@ -63,10 +88,13 @@ function readBooleanEnv(key, fallback = false) {
   return ["1", "true", "yes", "on"].includes(raw);
 }
 
-function configuredModelName() {
-  // 批注 2026-07-15：/v1/models 要暴露部署者实际配置的模型名；
-  // 不能继续硬编码示例模型，否则 Kelivo 模型选择会和真实上游不一致。
-  return String(process.env.MODEL_NAME || "gateway-model").trim() || "gateway-model";
+function configuredModelName(profile = "A") {
+  const suffix = profile === "B" ? "_B" : "_A";
+  return String(
+    process.env[`MODEL_NAME${suffix}`] ||
+    process.env.MODEL_NAME ||
+    "gateway-model"
+  ).trim() || "gateway-model";
 }
 
 // ========================
@@ -563,7 +591,7 @@ app.get("/healthz", async () => ({ status: "ok" }));
 app.get("/v1/models", async (req, reply) => {
   reply.send({
     object: "list",
-    data: [{ id: configuredModelName(), object: "model", created: 0, owned_by: "gateway" }]
+    data: [{ id: id: configuredModelName(req.gatewayProfile || "A"),
   });
 });
 
@@ -573,6 +601,7 @@ app.get("/v1/models", async (req, reply) => {
 app.post("/v1/chat/completions", async (req, reply) => {
   try {
     const profile = req.gatewayProfile || "A";
+    const profileConfig = getProfileConfig(profile);
     const body = req.body;
 
      // 批注 2026-07-15：公开部署时日志不能默认写入完整上下文；
@@ -715,20 +744,26 @@ saveTimeline(finalTimeline, profile);
       llmMessages.splice(idx, 1);
     }
 
-    if (!TARGET_API_URL || !process.env.TARGET_API_KEY) {
-      return reply.code(500).send({ error: "TARGET_API_URL / TARGET_API_KEY 未配置" });
-    }
+    if (!profileConfig.targetApiUrl || !profileConfig.targetApiKey) {
+  return reply.code(500).send({
+    error: `PROFILE_${profile}_TARGET_API_URL / TARGET_API_KEY 未配置`
+  });
+}
 
-    const requestedStream = body?.stream === true;
+const requestedStream = body?.stream === true;
 
-    // 请求模型
-    const response = await fetch(TARGET_API_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${process.env.TARGET_API_KEY}`
-      },
-      body: JSON.stringify({ ...body, messages: llmMessages })
+const response = await fetch(profileConfig.targetApiUrl, {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+    "Authorization": `Bearer ${profileConfig.targetApiKey}`
+  },
+  body: JSON.stringify({
+    ...body,
+    model: profileConfig.modelName,
+    messages: llmMessages
+  })
+});
     });
 
     const upstreamContentType = response.headers.get("content-type") || "";
