@@ -448,8 +448,8 @@ function getLastUserTime(messages) {
   }
 
   // 没时间就继续往前找，不要把这一条直接当成最后一条有效用户消息
-}
-      }
+
+      
 
       // 只打印最近 5 条无法解析时间的用户消息，避免日志爆炸
       if (debugCount < 5) {
@@ -484,7 +484,7 @@ function getLastUserTime(messages) {
         debugCount++;
       }
     
-  }l
+  }
 
   console.log("【时间诊断】没有找到任何可解析的用户时间");
   return null;
