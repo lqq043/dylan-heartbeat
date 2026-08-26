@@ -463,6 +463,8 @@ function getLastUserTime(messages) {
       if (debugCount < 5) {
         console.log("========== 时间诊断 ==========");
         console.log("用户消息字段:", Object.keys(msg));
+        console.log("消息完整内容:", JSON.stringify(msg).slice(0, 300));
+
 
         console.log(
           "content 原始值:",
