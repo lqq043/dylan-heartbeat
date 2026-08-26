@@ -167,8 +167,13 @@ function isSystemInternalText(text) {
 }
 
 function normalizeMessageForTimeline(msg) {
-  return { ...msg, content: normalizeContentToText(msg.content) };
-}
+    return {
+      ...msg,
+      content: normalizeContentToText(msg.content),
+      timestamp: msg.timestamp || new Date().toISOString()
+    };
+  }
+
 
 function prepareMessageForLLM(msg) {
   if (msg.role === "assistant" && msg.tool_calls) return msg;
