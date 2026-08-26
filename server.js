@@ -718,21 +718,25 @@ saveTimeline(finalTimeline, profile);
       })
     );
 
-    console.log("本次注入的特殊事件数量:", oldEvents.length);
+    const isTranslationFlow = kelivoMessages.some(m => isTranslationRequest(m));
+    console.log(`本次 [${isTranslationFlow ? "翻译请求" : "普通请求"}] 注入特殊事件数:`, isTranslationFlow ? 0 : oldEvents.length);
 
-    for (const event of oldEvents) {
-      const eventTime = extractTimestampWithMemory(event, tsDB);
-      if (!eventTime) { llmMessages.push(event); continue; }
-      let inserted = false;
-      for (let i = 0; i < llmMessages.length; i++) {
-        const msgTime = extractTimestampWithMemory(llmMessages[i], tsDB);
-        if (msgTime && msgTime >= eventTime) {
-          llmMessages.splice(i, 0, event);
-          inserted = true;
-          break;
+    // 翻译请求不注入自动唤醒日志：否则模型会把上下文里"最近一条"(唤醒日志)误当成要翻译的源文本
+    if (!isTranslationFlow) {
+      for (const event of oldEvents) {
+        const eventTime = extractTimestampWithMemory(event, tsDB);
+        if (!eventTime) { llmMessages.push(event); continue; }
+        let inserted = false;
+        for (let i = 0; i < llmMessages.length; i++) {
+          const msgTime = extractTimestampWithMemory(llmMessages[i], tsDB);
+          if (msgTime && msgTime >= eventTime) {
+            llmMessages.splice(i, 0, event);
+            inserted = true;
+            break;
+          }
         }
+        if (!inserted) llmMessages.push(event);
       }
-      if (!inserted) llmMessages.push(event);
     }
 
 
