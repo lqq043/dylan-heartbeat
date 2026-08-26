@@ -985,6 +985,8 @@ app.get("/admin", { preHandler: basicAuth }, async (req, reply) => {
   const currentUrl = readEnvValue("TARGET_API_URL");
   const currentModel = readEnvValue("MODEL_NAME");
   const currentIcon = readEnvValue("CUSTOM_ICON_URL");
+  const configDisplayNameA = readEnvValue("AI_DISPLAY_NAME_A");
+  const configDisplayNameB = readEnvValue("AI_DISPLAY_NAME_B");
   const gatewayKeyStatus = readEnvValue("GATEWAY_API_KEY") ? "已配置" : "未配置";
   const wakeConfig = {
     dayWakeAfter: readEnvValueOrDefault("DAY_WAKE_AFTER_MINUTES", "60"),
@@ -1514,6 +1516,12 @@ const html = `<!DOCTYPE html>
         <label>Bark Icon URL</label>
         <input name="custom_icon" id="f_icon" value="${escapeHtml(currentIcon)}" placeholder="可选">
 
+        <div class="section-title">角色推送标题（A / B）</div>
+        <label>角色 A 推送标题（如：Alano）</label>
+        <input name="ai_display_name_a" id="f_display_a" value="${escapeHtml(configDisplayNameA)}" placeholder="例如：Alano">
+        <label>角色 B 推送标题（如：Liora）</label>
+        <input name="ai_display_name_b" id="f_display_b" value="${escapeHtml(configDisplayNameB)}" placeholder="例如：Liora">
+
         <div class="section-title">Wake Settings</div>
         <div class="grid-2">
           <div>
@@ -1629,7 +1637,9 @@ const html = `<!DOCTYPE html>
         weather_location_name: document.getElementById("f_weather_location_name").value.trim(),
         weather_lat: document.getElementById("f_weather_lat").value.trim(),
         weather_lon: document.getElementById("f_weather_lon").value.trim(),
-        weather_units: document.getElementById("f_weather_units").value
+        weather_units: document.getElementById("f_weather_units").value,
+        ai_display_name_a: document.getElementById("f_display_a").value.trim(),
+        ai_display_name_b: document.getElementById("f_display_b").value.trim()
       };
 
       if (!payload.target_url || !payload.model_name) {
@@ -1745,7 +1755,9 @@ app.post("/admin/save", { preHandler: basicAuth }, async (req, reply) => {
       weather_location_name,
       weather_lat,
       weather_lon,
-      weather_units
+      weather_units,
+      ai_display_name_a,
+      ai_display_name_b
     } = req.body || {};
 
     if (!target_url || !model_name) {
@@ -1776,6 +1788,8 @@ app.post("/admin/save", { preHandler: basicAuth }, async (req, reply) => {
       WEATHER_LAT: weather_lat || "",
       WEATHER_LON: weather_lon || "",
       WEATHER_UNITS: normalizeWeatherUnits(weather_units),
+      AI_DISPLAY_NAME_A: ai_display_name_a || "",
+      AI_DISPLAY_NAME_B: ai_display_name_b || "",
       ADMIN_USER: readEnvValue("ADMIN_USER"),
       ADMIN_PASSWORD: readEnvValue("ADMIN_PASSWORD")
     });
