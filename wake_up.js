@@ -28,6 +28,14 @@ function getActiveProfiles() {
   const count = raw ? raw.split(",").map(s => s.trim()).filter(Boolean).length : 0;
   return count >= 2 ? ["A", "B"] : ["A"];
 }
+// 推送标题用的角色显示名：优先 AI_DISPLAY_NAME_A/_B，未设置则回退默认（A=老婆, B=B）
+function displayNameForProfile(profile) {
+  const suffix = profile === "B" ? "_B" : "_A";
+  return (
+    String(process.env[`AI_DISPLAY_NAME${suffix}`] || "").trim() ||
+    (profile === "B" ? "B" : "老婆")
+  );
+}
 const PORT = Number(process.env.PORT) || 3000;
 const GATEWAY_BASE_URL = (process.env.GATEWAY_BASE_URL || `http://localhost:${PORT}`).replace(/\/+$/, "");
 const GATEWAY_URL = `${GATEWAY_BASE_URL}/internal/wake-event`;
@@ -582,8 +590,10 @@ async function runWakeUp(profile = "A") {
     .join("\n\n");
 
   const baseSystemPrompt = cleanMessages.find(msg => msg.role === "system");
-  const cleanSP = baseSystemPrompt 
-    ? normalizeContentToText(baseSystemPrompt.content).split("## Memories")[0].trim()
+  // 保留 ## Memories（含角色语言/人设指令）：否则 heartbeat 自动唤醒会失去角色口吻，
+  // 例如 B 角色"始终用韩语"被剥掉后，自动推送会变成中文、让人分不清是不是 B。
+  const cleanSP = baseSystemPrompt
+    ? normalizeContentToText(baseSystemPrompt.content).trim()
     : "";
 
   const wakeMessages = [
@@ -706,8 +716,8 @@ if (!barkSourceText) {
       console.log("\n推送内容清洗后为空，本次不发送推送\n");
       eventContent = "";
     } else {
-      // A = 老婆，B = 韩语角色
-      title = profile === "B" ? "B" : "老婆";
+      // 标题用角色显示名：优先 AI_DISPLAY_NAME_A/_B，回退默认（A=老婆, B=B）
+      title = displayNameForProfile(profile);
 
       // AI 的全部内容都作为正文，不再把第一行误认为标题
       body = lines.join("\n");

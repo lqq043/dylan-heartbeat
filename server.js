@@ -156,15 +156,48 @@ function normalizeContentToText(content) {
   return "[非文本内容]";
 }
 
+// 系统内部信息（Gate / user_memory 标记、上游 API 报错）不属于真实聊天记录，
+// 一旦写进时间线或喂回模型就会污染后续 prompt。这里提供统一的识别与清洗。
+function isSystemInternalText(text) {
+  const t = normalizeContentToText(text);
+  // 剔除 Gate / user_memory 标记后若无可读内容、且原文确实含标记 → 纯系统内部信息
+  const stripped = t
+    .replace(/<gate\b[^>]*>/gi, "")
+    .replace(/<\/gate>/gi, "")
+    .replace(/<user_memory\b[^>]*>[\s\S]*?<\/user_memory>/gi, "")
+    .replace(/<user_memory\b[^>]*>/gi, "")
+    .trim();
+  if (!stripped && /<(?:gate|user_memory)\b[^>]*>/i.test(t)) return true;
+  // 典型的内部/上游报错文本
+  if (/HttpException:?\s*HTTP\s*\d{3}/i.test(t)) return true;
+  if (/Api.?key:?\s*\*+\d+\s*is invalid/i.test(t)) return true;
+  if (/Authentication Fails/i.test(t)) return true;
+  return false;
+}
+
+function stripSystemInternalMarkers(text) {
+  return normalizeContentToText(text)
+    .replace(/<gate\b[^>]*>/gi, "")
+    .replace(/<\/gate>/gi, "")
+    .replace(/<user_memory\b[^>]*>[\s\S]*?<\/user_memory>/gi, "")
+    .replace(/<user_memory\b[^>]*>/gi, "")
+    .trim();
+}
+
 function normalizeMessageForTimeline(msg) {
-  return { ...msg, content: normalizeContentToText(msg.content) };
+  return { ...msg, content: stripSystemInternalMarkers(msg.content) };
 }
 
 function prepareMessageForLLM(msg) {
   if (msg.role === "assistant" && msg.tool_calls) return msg;
   if (msg.role === "tool") return msg;
   if (msg.role === "system") return { ...msg, content: normalizeContentToText(msg.content) };
-  if (typeof msg.content === "string") return msg;
+  if (typeof msg.content === "string") {
+    // 清洗 user/assistant 文本里的 Gate/user_memory 标记；纯系统内部内容直接丢弃
+    const cleaned = stripSystemInternalMarkers(msg.content);
+    if (!cleaned) return null;
+    return { ...msg, content: cleaned };
+  }
 
   if (Array.isArray(msg.content) && shouldForwardMultimodalContent()) return msg;
 
@@ -357,6 +390,11 @@ function isRealMessageForTimeline(msg) {
   const contentText = normalizeContentToText(msg.content);
 
   if (msg.role === "user" && contentText.trim().startsWith("<system>")) {
+    return false;
+  }
+
+  // 系统内部信息（Gate/user_memory 标记、上游报错）不写入时间线，避免污染后续 prompt
+  if (isSystemInternalText(contentText)) {
     return false;
   }
 
